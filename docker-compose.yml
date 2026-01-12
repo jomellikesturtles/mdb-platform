@@ -1,0 +1,59 @@
+# move this to another folder
+
+# version: "3.8"
+services:
+  # web:
+  #   build:
+  #     context:
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:80"
+  #   volumes:
+  #     - ./src:/app/src # hot reloading trick//
+  # bff:
+  #   build:
+  #   depends_on:
+  #     - gateway
+  #     - redis
+  #     - db
+  # gateway:
+  #   depends_on:
+  #     - db
+
+  admin-web:
+    build: ./mdb-admin-web-app
+    # entrypoint
+    ports: 3000:80
+    networks:
+      - front-tier
+      - back-tier
+  #   depends_on:
+  #     - bff
+  redis:
+    image: redis:alpine
+    volumes:
+      - "./healthchecks:/healthchecks"
+    healthcheck:
+      test: /healthchecks/redis.sh
+      interval: 5s
+    networks:
+      - back-tier
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+      - "./healthchecks:/healthchecks"
+    healthcheck:
+      test: /healthchecks/postgres.sh
+      interval: 5s
+    networks:
+      - back-tier
+
+volumes:
+  db-data:
+networks:
+  front-tier:
+  back-tier:
