@@ -13,20 +13,34 @@ services:
   # bff:
   #   build:
   #   depends_on:
-  #     - gateway
+  #     # - gateway
   #     - redis
   #     - db
   # gateway:
+  #   build: ./media-data-gateway-service
   #   depends_on:
-  #     - db
+  #     db:
+  #       condition: service_healthy
+  #   ports:
+  #     - 9090:9090
+  #   networks:
+  #     - back-tier
 
+  overview:
+    build: ./mdb-overview
+    # entrypoint
+    ports: 
+      - 4100:80
+    networks:
+      - front-tier
   admin-web:
     build: ./mdb-admin-web-app
     # entrypoint
-    ports: 3000:80
+    ports: 
+      - 5200:80
     networks:
       - front-tier
-      - back-tier
+      # - back-tier
   #   depends_on:
   #     - bff
   redis:
