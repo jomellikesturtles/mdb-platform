@@ -16,15 +16,19 @@ services:
   #     # - gateway
   #     - redis
   #     - db
-  # gateway:
-  #   build: ./media-data-gateway-service
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   ports:
-  #     - 9090:9090
-  #   networks:
-  #     - back-tier
+  gateway:
+    build: ./media-data-gateway-service
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - 9090:9090
+    networks:
+      - back-tier
 
   overview:
     build: ./mdb-overview
@@ -52,7 +56,7 @@ services:
       interval: 5s
     networks:
       - back-tier
-  db:
+  postgres-db:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: "postgres"
@@ -63,6 +67,8 @@ services:
     healthcheck:
       test: /healthchecks/postgres.sh
       interval: 5s
+    ports:
+      - 5431:5432
     networks:
       - back-tier
 
