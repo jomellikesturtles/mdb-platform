@@ -13,10 +13,10 @@ services:
   # bff:
   #   build:
   #   depends_on:
-  #     # - gateway
+  #     # - media-data-gateway-service
   #     - redis
   #     - db
-  gateway:
+  media-data-gateway-service:
     build: ./media-data-gateway-service
     depends_on:
       postgres-db:
