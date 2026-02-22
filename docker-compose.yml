@@ -2,20 +2,113 @@
 
 # version: "3.8"
 services:
-  # web:
-  #   build:
-  #     context:
-  #     dockerfile: Dockerfile
+
+  # Infrastructure
+
+  traefik:
+    image: traefik:v3.6
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # kafka:
   #   ports:
-  #     - "3000:80"
-  #   volumes:
-  #     - ./src:/app/src # hot reloading trick//
-  # bff:
-  #   build:
+  #     - "8092:8080"
+  # rabbitmq:
+  #   ports:
+  #     - "8484:8080"
+  # keycloak:
+  #   ports:
+  #     - "8484:8080"
+  # MinIO:
+  #   ports:
+  #     - "9001:9000"
+  redis:
+    image: redis:alpine
+    volumes:
+      - "./healthchecks:/healthchecks"
+    healthcheck:
+      test: /healthchecks/redis.sh
+      interval: 5s
+    ports:
+      - 6379:6379
+    networks:
+      - back-tier
+  postgres-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "mdb_prod"
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+      - "./healthchecks:/healthchecks"
+    healthcheck:
+      test: /healthchecks/postgres.sh
+      interval: 5s
+    ports:
+      - 5433:5432
+    networks:
+      - back-tier
+
+  # Web apps
+
+  web:
+    build: ./mdb-electron
+    ports:
+      - "4001:80"
+    volumes:
+      - ./mdb-electron/dist/mdb-electron:/usr/share/nginx/html
+  admin-web:
+    build: ./mdb-admin-web-app
+    # entrypoint
+    ports:
+      - 4002:80
+    networks:
+      - front-tier
+      - back-tier
   #   depends_on:
-  #     # - media-data-gateway-service
-  #     - redis
-  #     - db
+  #     - bff
+  overview:
+    build: ./mdb-overview
+    # entrypoint
+    ports:
+      - 4003:80
+    networks:
+      - front-tier
+
+  # API and BFF Layer
+
+  bff:
+    image: 145099743252137218288881570337/mdb-api:latest
+    ports:
+      - 5001:8082
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    #   - media-data-gateway-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_PROFILES_ACTIVE: dev,asia,local
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SERVER_SERVLET_CONTEXT_PATH: /mdb
+    command: ["java", "-jar", "/mdb-0.0.0-SNAPSHOT.jar", "--server.servlet.context-path=/mdb", "--spring.datasource.url=jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public", "--spring.data.redis.host=redis", "--spring.data.redis.port=6379", "--management.endpoints.web.exposure.include=*", "--management.endpoint.health.show-details=always"]
+    networks:
+      - back-tier
+
+  # Domain Services
+
   media-data-gateway-service:
     build: ./media-data-gateway-service
     depends_on:
@@ -26,51 +119,51 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
     ports:
-      - 9090:9090
+      - 6002:9090
     networks:
       - back-tier
-
-  overview:
-    build: ./mdb-overview
-    # entrypoint
-    ports: 
-      - 4100:80
-    networks:
-      - front-tier
-  admin-web:
-    build: ./mdb-admin-web-app
-    # entrypoint
-    ports: 
-      - 5200:80
-    networks:
-      - front-tier
-      # - back-tier
+  # user-data-gateway-service:
+  #   build: ./user-data-gateway-service
   #   depends_on:
-  #     - bff
-  redis:
-    image: redis:alpine
-    volumes:
-      - "./healthchecks:/healthchecks"
-    healthcheck:
-      test: /healthchecks/redis.sh
-      interval: 5s
-    networks:
-      - back-tier
-  postgres-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-    volumes:
-      - "db-data:/var/lib/postgresql/data"
-      - "./healthchecks:/healthchecks"
-    healthcheck:
-      test: /healthchecks/postgres.sh
-      interval: 5s
-    ports:
-      - 5431:5432
-    networks:
-      - back-tier
+  #     postgres-db:
+  #       condition: service_healthy
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+  #     SPRING_DATASOURCE_USERNAME: postgres
+  #     SPRING_DATASOURCE_PASSWORD: postgres
+  #   ports:
+  #     - 6001:9090
+  #   networks:
+  #     - back-tier
+
+  # Workers and Async Services
+
+  # crawler-service:
+  #   build: ./user-data-gateway-service
+  #   depends_on:
+  #     postgres-db:
+  #       condition: service_healthy
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+  #     SPRING_DATASOURCE_USERNAME: postgres
+  #     SPRING_DATASOURCE_PASSWORD: postgres
+  #   ports:
+  #     - 7001:9090
+  #   networks:
+  #     - back-tier
+  # notification-service:
+  #   build: ./user-data-gateway-service
+  #   depends_on:
+  #     postgres-db:
+  #       condition: service_healthy
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+  #     SPRING_DATASOURCE_USERNAME: postgres
+  #     SPRING_DATASOURCE_PASSWORD: postgres
+  #   ports:
+  #     - 7002:9090
+  #   networks:
+  #     - back-tier
 
 volumes:
   db-data:

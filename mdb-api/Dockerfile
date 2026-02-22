@@ -1,13 +1,13 @@
-FROM ubuntu:latest
-#FROM openjdk:11-jdk
-
-LABEL authors="jommel"
+FROM eclipse-temurin:21-jdk
+#FROM openjdk:21-jre-slim
 VOLUME /tmp
 
-EXPOSE 8080
-# Copy the application JAR file to the container
-COPY target/mdb-0.0.0-SNAPSHOT-plain.jar mdb-0.0.0-SNAPSHOT-plain.jar
-# Set the command to run the application when the container starts
-CMD ["java", "-jar", "/mdb-0.0.0-SNAPSHOT-plain.jar"]
+LABEL authors="jommel"
+# VOLUME /tmp
 
-#ENTRYPOINT ["top", "-b"    ]
+EXPOSE 8084
+
+# Copy the application JAR file to the container
+COPY mdb-0.0.0-SNAPSHOT.jar mdb-0.0.0-SNAPSHOT.jar
+# Set the command to run the application when the container starts
+CMD ["java", "-jar", "/mdb-0.0.0-SNAPSHOT.jar"]

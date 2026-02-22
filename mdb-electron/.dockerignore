@@ -1,0 +1,16 @@
+node_modules
+.git
+.angular
+.vscode
+.gemini
+e2e
+README.md
+README-old.md
+Dockerfile
+.dockerignore
+npm-debug.log
+debug.log
+*.md
+.editorconfig
+.prettierrc
+.browserslistrc
