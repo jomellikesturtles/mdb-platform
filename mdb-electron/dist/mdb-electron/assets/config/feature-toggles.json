@@ -1,0 +1,34 @@
+{
+  "newSearch": {
+    "description": "Advanced search features",
+    "enabled": false
+  },
+  "betaFeatures": {
+    "description": "Beta features",
+    "enabled": false
+  },
+  "springMode": {
+    "description": "Call Spring API",
+    "enabled": false
+  },
+  "torrent_flag": {
+    "description": "Play from Torrent",
+    "enabled": false
+  },
+  "direct_tmdb": {
+    "description": "Call TMDB API directly from here",
+    "enabled": false
+  },
+  "played_status": {
+    "description": "Played/watched/progress status",
+    "enabled": false
+  },
+  "trailer": {
+    "description": "Play trailer button",
+    "enabled": false
+  },
+  "review": {
+    "description": "Media reviews functionality",
+    "enabled": false
+  }
+}
