@@ -106,6 +106,7 @@ services:
     command: ["java", "-jar", "/mdb-0.0.0-SNAPSHOT.jar", "--server.servlet.context-path=/mdb", "--spring.datasource.url=jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public", "--spring.data.redis.host=redis", "--spring.data.redis.port=6379", "--management.endpoints.web.exposure.include=*", "--management.endpoint.health.show-details=always"]
     networks:
       - back-tier
+  # admin-bff-service:
 
   # Domain Services
 
