@@ -2,7 +2,6 @@
 
 # version: "3.8"
 services:
-
   # Infrastructure
 
   traefik:
@@ -11,6 +10,7 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--configFile=traefik.yml" # Point to config
     ports:
       - "80:80"
       - "8888:8080"
@@ -23,9 +23,15 @@ services:
   # rabbitmq:
   #   ports:
   #     - "8484:8080"
-  # keycloak:
-  #   ports:
-  #     - "8484:8080"
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.4
+    container_name: keycloak
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "127.0.0.1:8484:8080"
+    command: start-dev
   # MinIO:
   #   ports:
   #     - "9001:9000"
@@ -103,7 +109,18 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SERVER_SERVLET_CONTEXT_PATH: /mdb
-    command: ["java", "-jar", "/mdb-0.0.0-SNAPSHOT.jar", "--server.servlet.context-path=/mdb", "--spring.datasource.url=jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public", "--spring.data.redis.host=redis", "--spring.data.redis.port=6379", "--management.endpoints.web.exposure.include=*", "--management.endpoint.health.show-details=always"]
+    command:
+      [
+        "java",
+        "-jar",
+        "/mdb-0.0.0-SNAPSHOT.jar",
+        "--server.servlet.context-path=/mdb",
+        "--spring.datasource.url=jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public",
+        "--spring.data.redis.host=redis",
+        "--spring.data.redis.port=6379",
+        "--management.endpoints.web.exposure.include=*",
+        "--management.endpoint.health.show-details=always",
+      ]
     networks:
       - back-tier
   # admin-bff-service:
