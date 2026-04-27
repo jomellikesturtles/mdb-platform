@@ -34,7 +34,7 @@ AUTH_COLOR = "firebrick"     # Security/Auth flows
 INFRA_COLOR = "gray30"       # Database/Storage
 
 # run with python3 diagram.py or python diagram.py
-with Diagram("Media Database v1", show=False, graph_attr=graph_attr):
+with Diagram("Media Database", show=False, graph_attr=graph_attr):
 
 #     # Connect nodes but point the arrow to the clusters
 #     groupA[0] >> Edge(ltail="cluster_Source Cluster", lhead="cluster_Target Cluster") >> groupB[0]
@@ -101,20 +101,20 @@ with Diagram("Media Database v1", show=False, graph_attr=graph_attr):
 
     # dashed, solid, dotted
     
-    SOLID = "solid"     # Direct Request/Response (REST/gRPC)
-    DASHED = "dashed"    # Event Streams (Kafka)
-    DOTTED = "dotted"     # Security/Auth flows
+    SOLID = "solid"
+    DASHED = "dashed"
+    DOTTED = "dotted"
 
     [web_app, admin_web_app] >> Edge(color=SYNC_COLOR) >> ingress >> Edge(color=SYNC_COLOR) >> bff_services_group
-    bff_services_group[1] >> primary
+    bff_services_group[1] >> Edge(color=SYNC_COLOR) >> primary
     # bff_services_group[0] >> primary
-    bff_services_group >> kafka
+    bff_services_group >> Edge(color=SYNC_COLOR) >> kafka
     Internet("TMDB,Imdb") >> crawler_service >> media_data_gateway_service
     mdb_bff_service >> Edge(color=SYNC_COLOR, label="Direct Query (REST/gRPC)") >> [user_data_gateway_service, media_data_gateway_service]
     # mdb_admin_bff_service >> Edge(color=SYNC_COLOR, label="Direct Query (REST/gRPC)") >> [user_data_gateway_service, media_data_gateway_service]
     media_data_gateway_service >> Edge(color=SYNC_COLOR) >> media_db
     user_data_gateway_service >> Edge(color=SYNC_COLOR) >> user_db
     kafka >> Edge(color=INFRA_COLOR, style=DASHED) >> [mdb_admin_bff_service,notification_service]
-    notification_service >> [email,slack]
+    notification_service >> Edge(color=SYNC_COLOR) >> [email,slack]
     overview << Edge(color=SYNC_COLOR, label="app download, large files") << storage
     # mdb_bff_service >> Edge(color=SYNC_COLOR, label="REST") >> Server("Search Engine")
