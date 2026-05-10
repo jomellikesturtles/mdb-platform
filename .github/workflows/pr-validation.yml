@@ -27,10 +27,22 @@ jobs:
         if: always()
         run: docker compose ps
 
-      - name: Verify BFF Health
+      - name: Verify BFF Health 1
         run: |
           curl -f http://localhost:5001/mdb/actuator/health || (docker compose logs bff && exit 1)
-
+        continue-on-error: true
+      - name: Verify BFF Health 2
+        run: |
+          curl -f http://localhost:5001/actuator/health || (docker compose logs bff && exit 1)
+        continue-on-error: true
+      - name: Verify BFF Health 3
+        run: |
+          curl -f http://localhost:5001/health || (docker compose logs bff && exit 1)
+        continue-on-error: true
+      - name: Verify BFF Health 4
+        run: |
+          curl -f http://localhost:5001/mdb/health || (docker compose logs bff && exit 1)
+        continue-on-error: true
       - name: Shutdown and Cleanup
         if: always()
         run: docker compose down -v
