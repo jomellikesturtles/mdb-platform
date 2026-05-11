@@ -1,0 +1,28 @@
+global:
+  # smtp_smarthost: "smtp:25"
+  # smtp_from: "jommel.s.2020@gmail.com"
+  resolve_timeout: 5m
+  # Gmail SMTP Settings
+  smtp_smarthost: "smtp.gmail.com:587"
+  smtp_from: "jommel.s.2020@gmail.com"
+  smtp_auth_username: "jommel.s.2020@gmail.com"
+  smtp_auth_password: "vpcj atll aqrk czif" # Use App Password here
+  smtp_require_tls: true
+route:
+  # receiver: example-email
+  # group_by: [alertname]
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: "gmail-notifications"
+receivers:
+  - name: "gmail-notifications"
+    email_configs:
+      - to: "jommel.s.2020@gmail.com"
+        send_resolved: true
+
+  # - name: example-email
+  #   email_configs:
+      # - to: "jommel.s.2020@gmail.com"
+# 

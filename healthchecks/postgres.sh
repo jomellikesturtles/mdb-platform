@@ -1,20 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 
-
-host="$(hostname -i || echo '127.0.0.1')"
 user="${POSTGRES_USER:-postgres}"
-db="${POSTGRES_DB:-$POSTGRES_USER}"
+db="${POSTGRES_DB:-$user}"
 export PGPASSWORD="${POSTGRES_PASSWORD:-}"
 
-args=(
-  --host "$host"
-  --username "$user"
-  --dbname "$db"
-  --quiet --no-align --tuples-only
-)
-
-if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
+if pg_isready -U "$user" -d "$db"; then
   exit 0
 fi
 
