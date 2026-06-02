@@ -1,1 +1,0 @@
-window.environment={production:!1,language:"en",publicKey:"\n  \n  "};
