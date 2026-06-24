@@ -7,17 +7,26 @@ services:
   traefik:
     image: traefik:v3.6
     command:
-      - "--api.insecure=true"
+      - "--api.insecure=true"           # dashboard at http://localhost:8080/dashboard/
+      - "--api.dashboard=true"
       - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
-      - "--configFile=traefik.yml" # Point to config
     ports:
       - "80:80"
-      - "8888:8080"
+      - "8080:8080"                     # Traefik dashboard
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - proxy
+    labels:
+      - "traefik.enable=true"
+      # Secure dashboard router (requires traefik.mdb.localhost in /etc/hosts)
+      # - "traefik.http.routers.dashboard.rule=Host(`traefik.mdb.localhost`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      # - "traefik.http.routers.dashboard.service=api@internal"
+      # - "traefik.http.routers.dashboard.entrypoints=web"
+      # - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/"
+      # - "traefik.http.routers.dashboard.middlewares=auth"
   whoami:
     image: traefik/whoami
     container_name: whoami
@@ -57,7 +66,7 @@ services:
       test: /healthchecks/redis.sh
       interval: 5s
     ports:
-      - 6379:6379
+      - 6380:6379
     networks:
       - back-tier
   postgres-db:
@@ -95,7 +104,7 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
-      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://global-service-kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://global-service-kafka:29092,EXTERNAL://localhost:9093"
       KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -107,6 +116,7 @@ services:
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     networks:
       - back-tier
+      - proxy
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -121,6 +131,28 @@ services:
       DYNAMIC_CONFIG_ENABLED: "true"
     networks:
       - back-tier
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5673:5672"    # AMQP
+      - "15673:15672"  # Management UI → http://localhost:15673
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_VHOST: mdb
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - back-tier
+
   # portainer:
   #   image: portainer/portainer-ce:latest
   #   container_name: portainer
@@ -139,6 +171,10 @@ services:
     volumes:
       # - "./alertmanager.yml:/alertmanager/alertmanager.yml"
       - "./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml"
+      - "alertmanager-data:/alertmanager"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
     networks:
       - monitoring-tier
     ports:
@@ -199,14 +235,20 @@ services:
       - ./mdb-electron/dist/mdb-electron:/usr/share/nginx/html
   admin-web:
     build: ./mdb-admin-web-app
-    # entrypoint
     ports:
       - 4002:80
     networks:
       - front-tier
       - back-tier
+      - proxy
   #   depends_on:
   #     - bff
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.admin-web.rule=Host(`admin.localhost`)"
+      - "traefik.http.routers.admin-web.entrypoints=web"
+      - "traefik.http.services.admin-web.loadbalancer.server.port=80"
   overview:
     build: ./mdb-overview
     # entrypoint
@@ -214,47 +256,78 @@ services:
       - 4003:80
     networks:
       - front-tier
-
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.overview.rule=Host(`overview.mdb.localhost`)"
+      - "traefik.http.routers.overview.entrypoints=web"
+      - "traefik.http.services.overview.loadbalancer.server.port=80"
   # API and BFF Layer
+
+  config-server:
+    build: ./mdb-config-server
+    container_name: mdb-config-server
+    ports:
+      - "8888:8888"
+    environment:
+      - CONFIG_REPO_URI=${CONFIG_REPO_URI:-https://github.com/your-org/mdb-config-repo}
+      - KAFKA_BROKER=global-service-kafka:29092
+    networks:
+      - back-tier
 
   bff:
     image: 145099743252137218288881570337/mdb-api:latest
     ports:
       - 5001:8082
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.bff.rule=Host(`api.mdb.localhost`) && PathPrefix(`/mdb`)"
+      - "traefik.http.services.bff.loadbalancer.server.port=8082"
     depends_on:
       postgres-db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # config-server:
+      #   condition: service_started
     #   - media-data-gateway-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_PROFILES_ACTIVE: dev,asia,local
+      # SPRING_CONFIG_IMPORT: optional:configserver:http://mdb-admin:secret-config-pass@config-server:8888/
+      SERVER_SERVLET_CONTEXT_PATH: /mdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod
+      # externalized config files
+      # SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SERVER_SERVLET_CONTEXT_PATH: /mdb
+      RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_LIMIT_FOR_PERIOD: 4
+      RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_LIMIT_REFRESH_PERIOD: 100ms
+      RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_TIMEOUT_DURATION: 2s
     command:
       [
         "java",
         "-jar",
         "/mdb-0.0.0-SNAPSHOT.jar",
         "--server.servlet.context-path=/mdb",
-        "--spring.datasource.url=jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public",
-        "--spring.data.redis.host=redis",
-        "--spring.data.redis.port=6379",
+        # "--spring.config.import=optional:configserver:http://mdb-admin:secret-config-pass@config-server:8888/",
         "--management.endpoints.web.exposure.include=*",
         "--management.endpoint.health.show-details=always",
       ]
+    volumes:
+      - ./mdb-api/src/main/resources:/app/config:ro
     networks:
       - back-tier
+      - proxy
   # admin-bff-service:
 
   # Domain Services
 
   media-data-gateway-service:
-    build: ./media-data-gateway-service
+    # build: ./media-data-gateway-service
+    image: 145099743252137218288881570337/media-data-gateway-service:latest 
+    container_name: media-data-gateway-service
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -263,9 +336,18 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
     ports:
-      - 6002:9090
+      - 6002:9090   # gRPC
+      - 6003:8080   # HTTP actuator (Prometheus scrape)
     networks:
       - back-tier
+      - monitoring-tier
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.Name}}"
+    labels:
+      - "logging=promtail"
+      - "service=media-data-gateway-service"
   # user-data-gateway-service:
   #   build: ./user-data-gateway-service
   #   depends_on:
@@ -295,28 +377,33 @@ services:
   #     - 7001:9090
   #   networks:
   #     - back-tier
-  # notification-service:
-  #   build: ./user-data-gateway-service
-  #   depends_on:
-  #     postgres-db:
-  #       condition: service_healthy
-  #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
-  #     SPRING_DATASOURCE_USERNAME: postgres
-  #     SPRING_DATASOURCE_PASSWORD: postgres
-  #   ports:
-  #     - 7002:9090
-  #   networks:
-  #     - back-tier
+  notification-service:
+    image: 145099743252137218288881570337/notification-service:latest
+    # build: ./user-data-gateway-service
+    # depends_on:
+    #   postgres-db:
+    #     condition: service_healthy
+    env_file:
+      - ./config/notification-service/.env
+    ports:
+      - 7002:3500
+    networks:
+      - back-tier
+      - proxy
 
 volumes:
   db-data:
   portainer_data:
   prometheus_data:
+  alertmanager-data:
   grafana-storage: {}
+  rabbitmq-data:
 networks:
+  
   front-tier:
   back-tier:
+    name: mdb-platform_back-tier
+    external: true
   proxy:
   monitoring-tier:
     driver: bridge

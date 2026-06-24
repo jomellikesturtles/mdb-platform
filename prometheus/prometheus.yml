@@ -13,7 +13,24 @@ scrape_configs:
     static_configs:
       - targets:
           - prometheus:9090
-  - job_name: node
+
+  - job_name: mdb-api
+    metrics_path: /mdb/actuator/prometheus
     static_configs:
       - targets:
-          - bff:5001
+          - bff:8082
+
+  - job_name: admin-web
+    static_configs:
+      - targets:
+          - admin-web:4002
+
+  - job_name: media-data-gateway-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - media-data-gateway-service:8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: media-data-gateway-service

@@ -1,6 +1,62 @@
 groups:
-  - name: example
+  - name: container_alerts
     rules:
       - alert: InstanceDown
         expr: up == 0
         for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.job }} target {{ $labels.instance }} has been down for more than 1 minute."
+
+  - name: media_data_gateway_alerts
+    rules:
+      - alert: MediaGatewayDown
+        expr: up{job="media-data-gateway-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: media-data-gateway-service
+        annotations:
+          summary: "media-data-gateway-service is DOWN"
+          description: "The media-data-gateway-service has been unreachable for more than 30 seconds."
+
+      - alert: MediaGatewayHighErrorRate
+        expr: |
+          rate(http_server_requests_seconds_count{job="media-data-gateway-service", status=~"5.."}[5m])
+          /
+          rate(http_server_requests_seconds_count{job="media-data-gateway-service"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: media-data-gateway-service
+        annotations:
+          summary: "High 5xx error rate on media-data-gateway-service"
+          description: "Error rate is above 5% for the last 2 minutes (current: {{ $value | humanizePercentage }})."
+
+      - alert: MediaGatewayHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_server_requests_seconds_bucket{job="media-data-gateway-service"}[5m])
+          ) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: media-data-gateway-service
+        annotations:
+          summary: "High p95 latency on media-data-gateway-service"
+          description: "p95 response time is above 2s (current: {{ $value | humanizeDuration }})."
+
+      - alert: MediaGatewayHighJvmHeap
+        expr: |
+          jvm_memory_used_bytes{job="media-data-gateway-service", area="heap"}
+          /
+          jvm_memory_max_bytes{job="media-data-gateway-service", area="heap"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: media-data-gateway-service
+        annotations:
+          summary: "JVM heap usage high on media-data-gateway-service"
+          description: "Heap usage is above 85% for 5 minutes (current: {{ $value | humanizePercentage }})."
