@@ -55,9 +55,21 @@ services:
     ports:
       - "127.0.0.1:8484:8080"
     command: start-dev
-  # MinIO:
-  #   ports:
-  #     - "9001:9000"
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9001:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - back-tier
   redis:
     image: redis:alpine
     volumes:
@@ -302,6 +314,7 @@ services:
       # SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
       RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_LIMIT_FOR_PERIOD: 4
       RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_LIMIT_REFRESH_PERIOD: 100ms
       RESILIENCE4J_RATELIMITER_INSTANCES_TMDB_TIMEOUT_DURATION: 2s
@@ -398,6 +411,8 @@ volumes:
   alertmanager-data:
   grafana-storage: {}
   rabbitmq-data:
+  minio-data:
+
 networks:
   
   front-tier:
