@@ -1,1 +1,0 @@
-window.environment={production:!1,name:"ci",language:"en",bff:{uri:"",version:"v1"},bffBaseUrl:"",runConfig:{firebaseMode:!1,electron:!("http:"===location.protocol||"https:"===location.protocol),useTestData:!1}};
