@@ -1,0 +1,116 @@
+services:
+  # ==========================================
+  # THE EDGE
+  # ==========================================
+  api-gateway:
+    image: traefik:v3.6
+    ports:
+      - "8888:80"
+    networks:
+      - edge-net
+
+  # ==========================================
+  # WEB APPS (Frontends)
+  # ==========================================
+  mdb-overview:
+    # Port 4003
+    networks:
+      - edge-net
+      - overview-silo # Can only see concierge
+
+  mdb-web-app:
+    # Port 4001
+    networks:
+      - edge-net
+      - user-web-silo # Can only see user BFF
+
+  mdb-admin-web-app:
+    # Port 4002
+    networks:
+      - edge-net
+      - admin-web-silo # Can only see admin BFF
+
+  # ==========================================
+  # BFF LAYER
+  # ==========================================
+  mdb-bff:
+    # Port 5001
+    networks:
+      - edge-net
+      - user-web-silo
+      - domain-net
+      - cache-net
+      - message-net
+
+  mdb-admin-bff-service:
+    # Port 5002
+    networks:
+      - edge-net
+      - admin-web-silo
+      - domain-net
+      - cache-net
+      - message-net
+
+  # ==========================================
+  # DOMAIN SERVICES
+  # ==========================================
+  media-data-gateway-service:
+    # Port 6002
+    networks:
+      - domain-net
+      - cache-net
+      - data-net
+      - message-net
+
+  user-data-gateway-service:
+    # Port 6001
+    networks:
+      - domain-net
+      - cache-net
+      - data-net
+      - message-net
+
+  # ==========================================
+  # WORKERS & ASYNC SERVICES
+  # ==========================================
+  # Note: I am grouping the standard workers as they share the same access profile.
+  # (crawler, notification, aiops, link-health, analytics, media-processing, ai-batch)
+  mdb-workers: 
+    # Ports 7001-7006
+    networks:
+      - domain-net
+      - cache-net
+      - data-net
+      - message-net
+
+  mdb-client-concierge:
+    # Port 7007
+    networks:
+      - overview-silo # Required so overview can reach it
+      - domain-net
+      - cache-net
+      - data-net
+      - message-net
+
+  # ==========================================
+  # INFRASTRUCTURE & DATABASES
+  # ==========================================
+  db:
+    # Port 5433
+    networks:
+      - data-net # Only domain services and workers can reach this
+
+  redis:
+    # Port 6380
+    networks:
+      - cache-net # Only BFFs, domain services, and workers can reach this
+
+  kafka:
+    # Port 6380 (Note: typically 9092, check your config)
+    networks:
+      - message-net # All backend services can reach this
+
+  rabbit-mq:
+    # Port 5672
+    networks:
+      - message-net # All backend services can reach this

@@ -12,15 +12,19 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      # - "--entrypoints.web.address=:443"
     ports:
       - "80:80"
       - "8080:8080"                     # Traefik dashboard
+      # - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
+      - traefik.http.routers.admin-web.rule=Host(`admin.localhost`, `admin.mdb.local`)
+      - traefik.http.routers.bff.rule=Host(`api.mdb.localhost`, `api.mdb.local`) && PathPrefix(`/mdb`)
       # Secure dashboard router (requires traefik.mdb.localhost in /etc/hosts)
       # - "traefik.http.routers.dashboard.rule=Host(`traefik.mdb.localhost`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
       # - "traefik.http.routers.dashboard.service=api@internal"
@@ -74,13 +78,14 @@ services:
     image: redis:alpine
     volumes:
       - "./healthchecks:/healthchecks"
+      - "redis-data:/data"
     healthcheck:
       test: /healthchecks/redis.sh
       interval: 5s
     ports:
       - 6380:6379
     networks:
-      - back-tier
+      - cache-net
   postgres-db:
     image: postgres:15-alpine
     environment:
@@ -96,7 +101,7 @@ services:
     ports:
       - 5433:5432
     networks:
-      - back-tier
+      - data-net
   #
 
   # supabase/postgres 14.1.0 and beyond
@@ -107,16 +112,18 @@ services:
       - "5434:5432"
     environment:
       POSTGRES_PASSWORD: postgres
+    networks:
+      - data-net
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: global-service-kafka
     ports:
-      - "9093:9092"
+      - "9096:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
-      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://global-service-kafka:29092,EXTERNAL://localhost:9093"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://global-service-kafka:29092,EXTERNAL://localhost:9096"
       KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -127,8 +134,7 @@ services:
       KAFKA_LISTENERS: "INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093"
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     networks:
-      - back-tier
-      - proxy
+      - message-net
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -142,7 +148,7 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: global-service-kafka:29092
       DYNAMIC_CONFIG_ENABLED: "true"
     networks:
-      - back-tier
+      - message-net
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -163,7 +169,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - back-tier
+      - message-net
 
   # portainer:
   #   image: portainer/portainer-ce:latest
@@ -190,7 +196,7 @@ services:
     networks:
       - monitoring-tier
     ports:
-      - 9094:9093
+      - 9095:9093
 
   loki:
     image: grafana/loki:latest
@@ -220,6 +226,7 @@ services:
       - 3001:3000
     volumes:
       - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     networks:
       - monitoring-tier
 
@@ -240,18 +247,29 @@ services:
   # Web apps
 
   web:
-    build: ./mdb-electron
+    image: 145099743252137218288881570337/mdb-electron:v1.0.0
+    # build: ./mdb-electron
     ports:
       - "4001:80"
-    volumes:
-      - ./mdb-electron/dist/mdb-electron:/usr/share/nginx/html
+    # volumes:
+      # - ./mdb-electron/dist/mdb-electron:/usr/share/nginx/html
+    networks:
+      - proxy
+      - user-web-silo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+      - "traefik.http.routers.web.rule=Host(`app.mdb.localhost`)"
+      # - "traefik.http.routers.admin-web.rule=Host(`web.localhost`)"
+      # - "traefik.http.routers.admin-web.entrypoints=web"
+      # - "traefik.http.services.admin-web.loadbalancer.server.port=80"
   admin-web:
     build: ./mdb-admin-web-app
     ports:
       - 4002:80
     networks:
-      - front-tier
-      - back-tier
+      - admin-web-silo
       - proxy
   #   depends_on:
   #     - bff
@@ -262,19 +280,28 @@ services:
       - "traefik.http.routers.admin-web.entrypoints=web"
       - "traefik.http.services.admin-web.loadbalancer.server.port=80"
   overview:
-    build: ./mdb-overview
+    image: 145099743252137218288881570337/mdb-overview
+    platform: linux/amd64
+    # build: ./mdb-overview
     # entrypoint
     ports:
       - 4003:80
     networks:
-      - front-tier
       - proxy
+      - overview-silo # Can only see concierge
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.overview.rule=Host(`overview.mdb.localhost`)"
+      - "traefik.http.routers.overview.rule=Host(`overview.mdb.local`) || Host(`overview.192.168.1.22.nip.io`)"
+      
       - "traefik.http.routers.overview.entrypoints=web"
       - "traefik.http.services.overview.loadbalancer.server.port=80"
+
+      # # CHANGED: Route traffic through the secure entrypoint
+      # - "traefik.http.routers.overview.entrypoints=websecure"
+      # # ADDED: Direct Traefik to handle TLS termination using a self-signed certificate
+      # - "traefik.http.routers.overview.tls=true"
+      # - "traefik.http.services.overview.loadbalancer.server.port=80"
   # API and BFF Layer
 
   config-server:
@@ -287,19 +314,26 @@ services:
       - KAFKA_BROKER=global-service-kafka:29092
     networks:
       - back-tier
-
+  # ==========================================
+  # BFF LAYER
+  # ==========================================
   bff:
     image: 145099743252137218288881570337/mdb-api:latest
     ports:
-      - 5001:8082
+      - 8086:8082
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.bff.rule=Host(`api.mdb.localhost`) && PathPrefix(`/mdb`)"
+      # - "traefik.http.routers.bff.rule=Host(`api.mdb.localhost`) && PathPrefix(`/mdb`)"
+      # - "traefik.http.services.bff.loadbalancer.server.port=8082"
+      - "traefik.http.routers.bff.rule=Host(`api.mdb.localhost`, `api.mdb.local`, `api.192.168.1.22.nip.io`) && PathPrefix(`/mdb`)"
       - "traefik.http.services.bff.loadbalancer.server.port=8082"
+
+      # reate limit
+      - "traefik.http.middlewares.bff-ratelimit.ratelimit.average=2"
+      - "traefik.http.middlewares.bff-ratelimit.ratelimit.burst=2"
+      - "traefik.http.routers.bff.middlewares=bff-ratelimit"
     depends_on:
-      postgres-db:
-        condition: service_healthy
       redis:
         condition: service_healthy
       # config-server:
@@ -307,7 +341,6 @@ services:
     #   - media-data-gateway-service
     environment:
       SPRING_PROFILES_ACTIVE: dev,asia,local
-      # SPRING_CONFIG_IMPORT: optional:configserver:http://mdb-admin:secret-config-pass@config-server:8888/
       SERVER_SERVLET_CONTEXT_PATH: /mdb
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod
       # externalized config files
@@ -331,9 +364,20 @@ services:
     volumes:
       - ./mdb-api/src/main/resources:/app/config:ro
     networks:
-      - back-tier
       - proxy
+      - user-web-silo
+      - domain-net
+      - cache-net
+      - message-net
+      - data-net
   # admin-bff-service:
+  #   networks:
+  #   - admin-silo
+  # - proxy # might remove
+  #     - admin-web-silo
+  #     - domain-net
+  #     - cache-net
+  #     - message-net
 
   # Domain Services
 
@@ -352,8 +396,11 @@ services:
       - 6002:9090   # gRPC
       - 6003:8080   # HTTP actuator (Prometheus scrape)
     networks:
-      - back-tier
       - monitoring-tier
+      - domain-net
+      - cache-net
+      - data-net # media-data-net
+      - message-net
     logging:
       driver: json-file
       options:
@@ -361,19 +408,25 @@ services:
     labels:
       - "logging=promtail"
       - "service=media-data-gateway-service"
-  # user-data-gateway-service:
-  #   build: ./user-data-gateway-service
-  #   depends_on:
-  #     postgres-db:
-  #       condition: service_healthy
-  #   environment:
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
-  #     SPRING_DATASOURCE_USERNAME: postgres
-  #     SPRING_DATASOURCE_PASSWORD: postgres
-  #   ports:
-  #     - 6001:9090
-  #   networks:
-  #     - back-tier
+
+  user-data-gateway-service:
+    image: 145099743252137218288881570337/user-data-gateway-service:latest
+    # build: ./user-data-gateway-service
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mdb_prod?currentSchema=public
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      # - 6001:9090
+      - 6001:6005
+    networks:
+      - domain-net
+      - cache-net
+      - data-net # user-data-net
+      - message-net
 
   # Workers and Async Services
 
@@ -401,8 +454,10 @@ services:
     ports:
       - 7002:3500
     networks:
-      - back-tier
-      - proxy
+      - domain-net
+      - cache-net
+      - data-net
+      - message-net
 
 volumes:
   db-data:
@@ -412,13 +467,38 @@ volumes:
   grafana-storage: {}
   rabbitmq-data:
   minio-data:
+  redis-data:
 
 networks:
-  
-  front-tier:
+  overview-silo:
+    internal: true
+  user-web-silo:
+    internal: true
+  admin-web-silo:
+    internal: true
+  domain-net:
+    internal: true
+  cache-net:
+  data-net:
+    internal: false
+  message-net:
+    internal: true
   back-tier:
     name: mdb-platform_back-tier
     external: true
-  proxy:
+  
+  # # Isolated silo for the User Web app and its BFF
+  # web-silo:
+  #   internal: true
+
+  # # Isolated silo for the Admin app and its BFF
+  # admin-silo:
+  #   internal: true
+  # # The internal domain where BFFs talk to the Gateway/Microservices
+  # domain-tier:
+  #   internal: true
+
+  proxy: # edge-net
+    driver: bridge
   monitoring-tier:
     driver: bridge

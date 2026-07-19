@@ -1,0 +1,23 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: mdb-config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: ${CONFIG_REPO_URI:https://github.com/your-org/mdb-config-repo}
+          search-paths: '{application}'
+          default-label: main
+
+  security:
+    user:
+      name: ${CONFIG_SERVER_USER:mdb-admin}
+      password: ${CONFIG_SERVER_PASSWORD:secret-config-pass}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKER:localhost:9092}
+encrypt:
+  key: "your-super-secret-symmetric-key-for-mdb"

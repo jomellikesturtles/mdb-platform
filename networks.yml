@@ -1,0 +1,17 @@
+networks:
+  edge-net:
+    driver: bridge # The only network exposed to the internet
+  overview-silo:
+    internal: true
+  user-web-silo:
+    internal: true
+  admin-web-silo:
+    internal: true
+  domain-net:
+    internal: true
+  cache-net:
+    internal: true
+  data-net:
+    internal: false
+  message-net:
+    internal: true

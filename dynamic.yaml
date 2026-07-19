@@ -1,0 +1,14 @@
+http:
+  routers:
+    external-nas:
+      rule: "Host(`nas.yourdomain.local`)"
+      service: "nas-service"
+      entryPoints:
+        - "web"
+  
+  services:
+    nas-service:
+      loadBalancer:
+        servers:
+          # - url: "http://192.168.1.60:5000" # IP of the other LAN device
+          - url: "http://192.168.1.10" # IP of the other LAN device

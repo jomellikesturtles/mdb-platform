@@ -15,8 +15,9 @@ route:
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 1h
-  receiver: "gmail-notifications"
+  receiver: "blackhole"
 receivers:
+  - name: "blackhole"
   - name: "gmail-notifications"
     email_configs:
       - to: "jommel.s.2020@gmail.com"

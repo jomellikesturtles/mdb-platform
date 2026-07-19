@@ -1,5 +1,16 @@
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
 experimental:
   plugins:
     sablier:
       moduleName: "github.com/sablierapp/sablier"
       version: "v1.10.1"
+providers:
+  file:
+    directory: /path/to/dynamic_conf
+    watch: true
+
+

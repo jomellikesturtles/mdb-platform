@@ -23,7 +23,7 @@ services:
     networks:
       - localprom
     ports:
-      - 9093:9093
+      - 9094:9093
 networks:
   localprom:
     driver: bridge

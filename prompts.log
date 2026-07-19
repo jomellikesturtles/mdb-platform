@@ -1,0 +1,6 @@
+[2026-06-28T17:00:52+08:00] User: mcp
+[2026-06-28T17:03:07+08:00] User: use github mcp. what is the active PR in mdb-electron
+[2026-06-28T17:14:37+08:00] User: Make plan on how we make table of status of these repositories under jomellikesturtles. We track all our repositories: mdb-admin-web-app, mdb-overview, mdb-electron, mdb-api, mdb-admin-bff-service, user-data-gateway, media-data-gateway, mdb-cli, mdb-platform, notification-service, aio-ops-remediation-service, mdb-crawler-service. Track branch protection to master, CI/CD for master, repository visibility status. Suggest improvements on Actions, Rulesets, workflows, branches, naming standards, dependabot, agents, etc.
+[2026-06-28T23:32:38+08:00] User: running docker compose up with dozens of services consumes disk size. how to save or minimize download size so that users or reviewers can view application instantly
+[2026-06-29T06:06:56+08:00] User: investigate error when running 'docker compose up -d --force-recreate bff '
+[2026-07-01T10:35:55+08:00] User: to save disk, and seniority demo, should this project pull docker images or store uglified codes in this repository?
